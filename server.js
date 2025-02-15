@@ -1,43 +1,82 @@
 import express from 'express';
 import fetch from 'node-fetch';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import cors from 'cors';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Bearer Token של Unusual Whales
-const UW_TOKEN = process.env.UW_TOKEN || "b03b587e-0799-4957-a2a0-e4ba10397581";
+// מוודא שיש טוקן
+const UW_TOKEN = process.env.UW_TOKEN;
+if (!UW_TOKEN) {
+    console.error("⚠️ שגיאה: משתנה הסביבה UW_TOKEN לא מוגדר!");
+    process.exit(1);
+}
 
-// מגיש את `ai-plugin.json`
-app.get('/.well-known/ai-plugin.json', (req, res) => {
-  res.sendFile(path.join(__dirname, 'ai-plugin.json'));
+// שימוש ב-CORS כדי לאפשר גישה מהדפדפן
+app.use(cors());
+
+// רשימת ה-endpoints שנבחרו
+const endpoints = [
+    "option-trades/flow-alerts",
+    "stock/{ticker}/option-contracts",
+    "option-contract/{id}/flow",
+    "stock/{ticker}/oi-change",
+    "stock/{ticker}/option/volume-oi-expiry",
+    "darkpool/recent",
+    "darkpool/{ticker}",
+    "insider/{ticker}/ticker-flow",
+    "market/insider-buy-sells",
+    "insider/{sector}/sector-flow",
+    "market/market-tide",
+    "market/spike",
+    "market/sector-etfs",
+    "market/{ticker}/etf-tide",
+    "etfs/{ticker}/holdings",
+    "stock/{ticker}/greek-flow",
+    "stock/{ticker}/greeks",
+    "stock/{ticker}/max-pain",
+    "stock/{ticker}/nope",
+    "stock/{ticker}/info",
+    "seasonality/market",
+    "seasonality/{month}/performers",
+    "earnings/afterhours",
+    "earnings/premarket",
+    "earnings/{ticker}"
+];
+
+// יצירת הנתיבים בפרוקסי
+endpoints.forEach(endpoint => {
+    app.get(`/api/${endpoint}`, async (req, res) => {
+        try {
+            let apiUrl = `https://api.unusualwhales.com/api/${endpoint}`;
+
+            // מחליף {ticker}, {month}, {id} בפרמטרים שנשלחו בבקשה
+            Object.keys(req.params).forEach(param => {
+                apiUrl = apiUrl.replace(`{${param}}`, req.params[param]);
+            });
+
+            const fetchOptions = {
+                method: "GET",
+                headers: { "Authorization": `Bearer ${UW_TOKEN}` }
+            };
+
+            const uwResponse = await fetch(apiUrl, fetchOptions);
+            const data = await uwResponse.json();
+
+            res.status(uwResponse.status).json(data);
+        } catch (err) {
+            console.error(`Proxy error on ${endpoint}:`, err);
+            res.status(500).json({ error: "Proxy error: " + err.message });
+        }
+    });
 });
 
-// Proxy לכל קריאה שמתחילה ב- /api
-app.use('/api', async (req, res) => {
-  try {
-    const subpath = req.url; // לדוגמה: /darkpool/recent
-    const uwURL = `https://api.unusualwhales.com/api${subpath}`;
-
-    const fetchOptions = {
-      method: req.method,
-      headers: { "Authorization": `Bearer ${UW_TOKEN}` }
-    };
-
-    const uwResponse = await fetch(uwURL, fetchOptions);
-    res.status(uwResponse.status);
-    const data = await uwResponse.json();
-    res.json(data);
-  } catch (err) {
-    console.error("Proxy error:", err);
-    res.status(500).json({ error: "Proxy error: " + err.message });
-  }
+// בריאות השרת
+app.get("/", (req, res) => {
+    res.json({ status: "✅ Proxy is running!" });
 });
 
+// הפעלת השרת
 app.listen(PORT, () => {
-  console.log(`Proxy server running on port ${PORT}`);
+    console.log(`🚀 Proxy server running on port ${PORT}`);
 });
