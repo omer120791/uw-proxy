@@ -15,7 +15,15 @@ if (!UW_TOKEN) {
 app.use(cors());
 app.use(express.json());
 
-// ✅ רשימת הנתיבים המלאים כולל darkpool
+// ✅ פונקציה שמגבילה את כמות הנתונים המוחזרת ומאפשרת דפדוף
+const limitResponseSize = (data, limit = 20, offset = 0) => {
+    if (Array.isArray(data)) {
+        return data.slice(offset, offset + limit); // מחזיר רק את החלק שביקש המשתמש
+    }
+    return data;
+};
+
+// ✅ רשימת ה-EndPoints הנתמכים
 const endpoints = [
     "option-trades/flow-alerts",
     "stock/:ticker/option-contracts",
@@ -29,7 +37,7 @@ const endpoints = [
     "stock/:ticker/max-pain"
 ];
 
-// ✅ יצירת נתיבים בשרת
+// ✅ יצירת הנתיבים הדינמיים בשרת עם תמיכה בסינון
 endpoints.forEach(endpoint => {
     app.get(`/api/${endpoint}`, async (req, res) => {
         try {
@@ -40,22 +48,32 @@ endpoints.forEach(endpoint => {
                 apiUrl = apiUrl.replace(`:${param}`, req.params[param]);
             });
 
-            console.log(`🔗 Fetching: ${apiUrl}`); // ✅ הדפסה לבדיקה
+            console.log(`🔗 Fetching: ${apiUrl}`);
 
-            const fetchOptions = {
+            const response = await fetch(apiUrl, {
                 method: "GET",
                 headers: { "Authorization": `Bearer ${UW_TOKEN}` }
-            };
+            });
 
-            const uwResponse = await fetch(apiUrl, fetchOptions);
-            if (!uwResponse.ok) {
-                throw new Error(`API request failed with status ${uwResponse.status}`);
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
             }
 
-            const data = await uwResponse.json();
-            res.status(uwResponse.status).json(data);
+            let data = await response.json();
+
+            // ✅ סינון חכם: משתמש יכול להגדיר limit ו-offset בבקשה
+            const limit = parseInt(req.query.limit) || 20; // כברירת מחדל 20 תוצאות
+            const offset = parseInt(req.query.offset) || 0; // ניתן לבקש דף שני וכו'
+            data = limitResponseSize(data, limit, offset);
+
+            res.status(response.status).json({
+                results: data,
+                limit,
+                offset,
+                next_offset: offset + limit, // למקרה שהמשתמש ירצה לבקש את ההמשך
+            });
         } catch (err) {
-            console.error(`❌ Proxy error on ${endpoint}:`, err);
+            console.error(`❌ Proxy error:`, err);
             res.status(500).json({ error: "Proxy error: " + err.message });
         }
     });
@@ -63,10 +81,4 @@ endpoints.forEach(endpoint => {
 
 // ✅ בריאות השרת
 app.get("/", (req, res) => {
-    res.json({ status: "✅ Proxy is running!" });
-});
-
-// ✅ הפעלת השרת
-app.listen(PORT, () => {
-    console.log(`🚀 Proxy server running on port ${PORT}`);
-});
+    res.j
