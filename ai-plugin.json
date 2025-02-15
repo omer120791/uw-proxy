@@ -1,0 +1,30 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Unusual Whales Proxy",
+  "name_for_model": "unusual_whales_proxy",
+  "description_for_model": "Proxy for Unusual Whales API.",
+  "description_for_human": "Fetch Unusual Whales data via proxy.",
+  "auth": { "type": "none" },
+  "api": {
+    "type": "openapi",
+    "url": null,
+    "is_user_authenticated": false,
+    "openapi_spec": {
+      "openapi": "3.1.0",
+      "info": { "title": "UW Proxy API", "version": "1.0.0" },
+      "servers": [{ "url": "https://your-proxy.onrender.com" }],
+      "paths": {
+        "/api/darkpool/recent": {
+          "get": {
+            "summary": "Get recent darkpool trades",
+            "operationId": "getDarkpoolRecent",
+            "responses": { "200": { "description": "Darkpool trades" } }
+          }
+        }
+      }
+    }
+  },
+  "logo_url": "https://example.com/logo.png",
+  "contact_email": "your@email.com",
+  "legal_info_url": "https://unusualwhales.com/legal"
+}
