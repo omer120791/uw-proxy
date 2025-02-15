@@ -15,29 +15,30 @@ if (!UW_TOKEN) {
 app.use(cors());
 app.use(express.json());
 
-// ✅ פונקציה שמגבילה את כמות הנתונים המוחזרת ומאפשרת דפדוף
-const limitResponseSize = (data, limit = 20, offset = 0) => {
+// ✅ פונקציה שמגבילה את כמות הנתונים המוחזרת ומוסיפה מידע לדפדוף
+const limitResponseSize = (data, limit = 10, offset = 0) => {
     if (Array.isArray(data)) {
-        return data.slice(offset, offset + limit); // מחזיר רק את החלק שביקש המשתמש
+        const total = data.length;
+        const slicedData = data.slice(offset, offset + limit);
+        return {
+            results: slicedData,
+            limit,
+            offset,
+            has_more: offset + limit < total // ✅ אם יש עוד מידע
+        };
     }
     return data;
 };
 
-// ✅ רשימת ה-EndPoints הנתמכים
+// ✅ רשימת הנתיבים הנתמכים
 const endpoints = [
     "option-trades/flow-alerts",
-    "stock/:ticker/option-contracts",
-    "option-contract/:id/flow",
-    "stock/:ticker/oi-change",
-    "darkpool/recent",
     "darkpool/:ticker",
-    "insider/:ticker/ticker-flow",
-    "market/insider-buy-sells",
-    "market/market-tide",
-    "stock/:ticker/max-pain"
+    "stock/:ticker/max-pain",
+    "market/market-tide"
 ];
 
-// ✅ יצירת הנתיבים הדינמיים בשרת עם תמיכה בסינון
+// ✅ יצירת הנתיבים בשרת
 endpoints.forEach(endpoint => {
     app.get(`/api/${endpoint}`, async (req, res) => {
         try {
@@ -61,17 +62,12 @@ endpoints.forEach(endpoint => {
 
             let data = await response.json();
 
-            // ✅ סינון חכם: משתמש יכול להגדיר limit ו-offset בבקשה
-            const limit = parseInt(req.query.limit) || 20; // כברירת מחדל 20 תוצאות
-            const offset = parseInt(req.query.offset) || 0; // ניתן לבקש דף שני וכו'
+            // ✅ הגבלת נתונים כדי שה-GPT יוכל לעבוד עם זה
+            const limit = parseInt(req.query.limit) || 10; // ברירת מחדל 10 תוצאות
+            const offset = parseInt(req.query.offset) || 0;
             data = limitResponseSize(data, limit, offset);
 
-            res.status(response.status).json({
-                results: data,
-                limit,
-                offset,
-                next_offset: offset + limit, // למקרה שהמשתמש ירצה לבקש את ההמשך
-            });
+            res.status(response.status).json(data);
         } catch (err) {
             console.error(`❌ Proxy error:`, err);
             res.status(500).json({ error: "Proxy error: " + err.message });
@@ -81,4 +77,10 @@ endpoints.forEach(endpoint => {
 
 // ✅ בריאות השרת
 app.get("/", (req, res) => {
-    res.j
+    res.json({ status: "✅ Proxy is running!" });
+});
+
+// ✅ הפעלת השרת
+app.listen(PORT, () => {
+    console.log(`🚀 Proxy server running on port ${PORT}`);
+});
