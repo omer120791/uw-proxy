@@ -5,7 +5,7 @@ import cors from 'cors';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// וידוא שטוקן UW_TOKEN קיים
+// ✅ בדיקה שהטוקן מוגדר
 const UW_TOKEN = process.env.UW_TOKEN;
 if (!UW_TOKEN) {
     console.error("⚠️ שגיאה: משתנה הסביבה UW_TOKEN לא מוגדר!");
@@ -15,44 +15,25 @@ if (!UW_TOKEN) {
 app.use(cors());
 app.use(express.json());
 
-// רשימת הנתיבים עם משתנים דינמיים
-const endpoints = [
-    "option-trades/flow-alerts",
-    "stock/:ticker/option-contracts",
-    "option-contract/:id/flow",
-    "stock/:ticker/oi-change",
-    "darkpool/recent",
-    "darkpool/:ticker",  // ✅ תוקן לתמיכה בפרמטרים דינמיים
-    "insider/:ticker/ticker-flow",
-    "market/insider-buy-sells",
-    "market/market-tide",
-    "stock/:ticker/max-pain"
-];
+// 🔹 יצירת נתיב ייחודי ל-Dark Pool
+app.get('/api/darkpool/:ticker', async (req, res) => {
+    try {
+        const ticker = req.params.ticker.toUpperCase();
+        const apiUrl = `https://api.unusualwhales.com/api/darkpool/${ticker}`;
 
-// יצירת הנתיבים בפרוקסי
-endpoints.forEach(endpoint => {
-    app.get(`/api/${endpoint}`, async (req, res) => {
-        try {
-            let apiUrl = `https://api.unusualwhales.com/api/${endpoint}`;
+        console.log(`🔗 Fetching: ${apiUrl}`);
 
-            // מחליף משתנים דינמיים (כגון :ticker ו-:id) בפרמטרים מהבקשה
-            Object.keys(req.params).forEach(param => {
-                apiUrl = apiUrl.replace(`:${param}`, req.params[param]);
-            });
+        const response = await fetch(apiUrl, {
+            method: "GET",
+            headers: { "Authorization": `Bearer ${UW_TOKEN}` }
+        });
 
-            console.log(`🔗 Calling Unusual Whales API: ${apiUrl}`); // ✅ הדפסה לבדיקה
+        if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+        }
 
-            const fetchOptions = {
-                method: "GET",
-                headers: { "Authorization": `Bearer ${UW_TOKEN}` }
-            };
-
-            const uwResponse = await fetch(apiUrl, fetchOptions);
-            if (!uwResponse.ok) {
-                throw new Error(`API request failed with status ${uwResponse.status}`);
-            }
-
-            const data = await uwResponse.json();
-            res.status(uwResponse.status).json(data);
-        } catch (err) {
-            console.error(`❌ Proxy error on ${endpoint}:`, err)
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (err) {
+        console.error(`❌ Proxy error:`, err);
+        res.status(500).json({ error: "
